@@ -4,7 +4,6 @@ export const myTurn = (game, playerColor) => game.turn() === playerColor;
 
 export const getCapturedPieces = (game, color) => {
   const captured = { p: 0, n: 0, b: 0, r: 0, q: 0 };
-  console.log(game.history({ verbose: true }));
   for (const move of game.history({ verbose: true })) {
     if (move.hasOwnProperty("captured") && move.color !== color) {
       captured[move.captured]++;

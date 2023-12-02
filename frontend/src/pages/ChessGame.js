@@ -29,7 +29,7 @@ export const ChessGame = () => {
   const { data: gameDetails, isLoading } = useFetch(getGameUrl(gameId));
   const [gameState, setGameState] = useState(getGameState(game));
 
-  // State for moving pieces onclick
+  // State for moving pieces on-click
   const [moveFrom, setMoveFrom] = useState("");
   const [moveTo, setMoveTo] = useState(null);
   const [optionSquares, setOptionSquares] = useState({});
@@ -114,16 +114,13 @@ export const ChessGame = () => {
   };
 
   const onSquareClick = (square) => {
-    // from square
     if (!moveFrom) {
       const hasMoveOptions = getMoveOptions(square);
       if (hasMoveOptions) setMoveFrom(square);
       return;
     }
 
-    // to square
     if (!moveTo) {
-      // check if valid move before showing dialog
       const moves = game.moves({
         moveFrom,
         verbose: true,
@@ -131,40 +128,20 @@ export const ChessGame = () => {
       const foundMove = moves.find(
         (m) => m.from === moveFrom && m.to === square
       );
-      // not a valid move
+
       if (!foundMove) {
-        // check if clicked on new piece
         const hasMoveOptions = getMoveOptions(square);
-        // if new piece, setMoveFrom, otherwise clear moveFrom
         setMoveFrom(hasMoveOptions ? square : "");
         return;
       }
 
-      // valid move
       setMoveTo(square);
 
-      try {
-        game.move({
-          from: moveFrom,
-          to: square,
-          promotion: "q",
-        });
-        send(messageTypes.MOVE, {
-          move: {
-            from: moveFrom,
-            to: square,
-            promotion: "q",
-          },
-          gameState: position,
-          gameId,
-          playerId,
-        });
-        updateGameState();
-      } catch {
-        const hasMoveOptions = getMoveOptions(square);
-        if (hasMoveOptions) setMoveFrom(square);
-        return;
-      }
+      makeAMove({
+        from: moveFrom,
+        to: square,
+        promotion: "q",
+      });
 
       setMoveFrom("");
       setMoveTo(null);
