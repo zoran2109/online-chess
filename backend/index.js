@@ -2,12 +2,20 @@ import { WebSocket, WebSocketServer } from "ws";
 import express from "express";
 import { uid } from "uid";
 import cors from "cors";
-import { messageTypes } from "./constants.js";
+import {
+  gamesCheckInterval,
+  heartbeatPingInterval,
+  messageTypes,
+} from "./constants.js";
 import { portNumber, frontendUrl } from "./app.config.js";
 
 let SEEKERS = [];
 let GAMES = {};
 let CLIENTS = {};
+
+function heartbeat() {
+  this.isAlive = true;
+}
 
 const seekOrCreate = (user) => {
   if (SEEKERS.length === 0) {
@@ -15,9 +23,14 @@ const seekOrCreate = (user) => {
     return null;
   } else {
     let opponent = SEEKERS.shift();
+
     while (CLIENTS[opponent].readyState !== WebSocket.OPEN) {
       delete CLIENTS[opponent];
-      opponent = SEEKERS.shift;
+      if (SEEKERS.length === 0) {
+        SEEKERS.push(user);
+        return null;
+      }
+      opponent = SEEKERS.shift();
     }
     const newGame = {
       players: [user, opponent],
@@ -37,9 +50,10 @@ const wss = new WebSocketServer({ noServer: true });
 
 wss.on("connection", function connection(ws) {
   ws.id = uid();
+  ws.isAlive = true;
   CLIENTS[ws.id] = ws;
-
-  ws.on("error", console.error);
+  console.log(ws.id, "connected.");
+  console.log("Number of connected clients:", wss.clients.size);
 
   ws.on("message", function message(data) {
     console.log(ws.id, "sent message", JSON.parse(data));
@@ -80,12 +94,51 @@ wss.on("connection", function connection(ws) {
       }
     }
   });
+
+  ws.on("pong", heartbeat);
+
+  ws.on("error", console.error);
+
+  /**
+   * Ping for heartbeat
+   */
+  const interval = setInterval(function ping() {
+    wss.clients.forEach(function each(ws) {
+      if (ws.isAlive === false) {
+        delete CLIENTS[ws.id];
+        return ws.terminate();
+      }
+
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, heartbeatPingInterval);
+
+  /**
+   * Delete games where at least one player is inactive
+   */
+  const gameDeleteInterval = setInterval(() => {
+    Object.keys(GAMES).forEach((game) => {
+      for (const player of GAMES[game].players) {
+        if (CLIENTS[player].readyState === WebSocket.CLOSED) {
+          delete GAMES[game];
+          return;
+        }
+      }
+    });
+    console.log("Active games:", Object.keys(GAMES));
+  }, gamesCheckInterval);
+
+  wss.on("close", function close() {
+    clearInterval(interval);
+    clearInterval(gameDeleteInterval);
+  });
 });
 
 const app = express();
 app.use(
   cors({
-    origin: frontendUrl,
+    origin: frontendUrl.split(","),
   })
 );
 const server = app.listen(portNumber);
