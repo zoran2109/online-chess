@@ -24,8 +24,11 @@ const seekOrCreate = (user) => {
   } else {
     let opponent = SEEKERS.shift();
 
-    while (CLIENTS[opponent].readyState !== WebSocket.OPEN) {
-      delete CLIENTS[opponent];
+    while (
+      !CLIENTS[opponent] ||
+      CLIENTS[opponent].readyState !== WebSocket.OPEN
+    ) {
+      if (CLIENTS[opponent]) delete CLIENTS[opponent];
       if (SEEKERS.length === 0) {
         SEEKERS.push(user);
         return null;
@@ -120,7 +123,10 @@ wss.on("connection", function connection(ws) {
   const gameDeleteInterval = setInterval(() => {
     Object.keys(GAMES).forEach((game) => {
       for (const player of GAMES[game].players) {
-        if (CLIENTS[player].readyState === WebSocket.CLOSED) {
+        if (
+          !CLIENTS[player] ||
+          CLIENTS[player].readyState === WebSocket.CLOSED
+        ) {
           delete GAMES[game];
           return;
         }
